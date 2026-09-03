@@ -9,12 +9,14 @@
     "backgroundColor": "#09090b",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.purrsonica.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "Purrsonica needs camera access to scan your desktop pairing QR code.",
         "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
+      "package": "com.purrsonica.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#09090b",
         "foregroundImage": "./assets/android-icon-foreground.png",

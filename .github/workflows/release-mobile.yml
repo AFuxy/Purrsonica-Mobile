@@ -1,0 +1,115 @@
+name: Build & Release Mobile App
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'mobile-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  # -------------------------------------------------------------
+  # Android Native Release Build (100% Free on Ubuntu Runners)
+  # -------------------------------------------------------------
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Generate Android Native Project (Expo Prebuild)
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build Android Release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare APK Asset
+        id: prepare_asset
+        run: |
+          VERSION="${{ github.event.inputs.release_tag || github.ref_name }}"
+          # Clean version tag (strip 'v' if present for filename)
+          CLEAN_VER="${VERSION#v}"
+          
+          # Locate built APK
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: Could not find output APK!"
+            exit 1
+          fi
+          
+          TARGET_NAME="Purrsonica-Mobile-v${CLEAN_VER}.apk"
+          cp "$APK_PATH" "$TARGET_NAME"
+          echo "apk_path=$TARGET_NAME" >> $GITHUB_OUTPUT
+          echo "release_tag=$VERSION" >> $GITHUB_OUTPUT
+          ls -lh "$TARGET_NAME"
+
+      - name: Upload APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prepare_asset.outputs.release_tag }}
+          name: "Purrsonica Mobile ${{ steps.prepare_asset.outputs.release_tag }}"
+          draft: false
+          prerelease: false
+          files: ${{ steps.prepare_asset.outputs.apk_path }}
+          generate_release_notes: true
+
+  # -------------------------------------------------------------
+  # EAS Cloud Build Trigger (Optional: requires EXPO_TOKEN secret)
+  # -------------------------------------------------------------
+  eas-build:
+    name: EAS Cloud Build (iOS & Android)
+    runs-on: ubuntu-latest
+    if: env.HAS_EXPO_TOKEN == 'true'
+    env:
+      HAS_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run EAS Build for iOS & Android
+        run: |
+          npx eas build --platform all --profile preview --non-interactive

@@ -16,7 +16,18 @@ import { useCompanionStore } from '../store/companionStore';
 import { CompanionPairingPayload } from '../types';
 
 export const PairingScreen: React.FC = () => {
-  const [permission, requestPermission] = useCameraPermissions();
+  let permission: any = null;
+  let requestPermission: any = async () => ({ granted: false });
+  try {
+    const cameraHook = useCameraPermissions();
+    if (cameraHook) {
+      permission = cameraHook[0];
+      requestPermission = cameraHook[1];
+    }
+  } catch (err) {
+    console.warn('[PairingScreen] Camera hook error:', err);
+  }
+
   const [isScanning, setIsScanning] = useState(true);
   const [isPairing, setIsPairing] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from './src/theme/colors';
 import { useCompanionStore } from './src/store/companionStore';
@@ -8,11 +8,67 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { FullPlayerModal } from './src/components/FullPlayerModal';
 
-export default function App() {
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[Purrsonica Mobile Crash]', error, errorInfo);
+  }
+
+  handleRestart = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <StatusBar style="light" />
+          <Text style={styles.errorTitle}>Purrsonica Mobile Diagnostic</Text>
+          <Text style={styles.errorSubtitle}>
+            An unhandled runtime error occurred:
+          </Text>
+          <ScrollView style={styles.errorBox}>
+            <Text style={styles.errorText}>
+              {this.state.error?.message || 'Unknown error'}
+            </Text>
+            {this.state.error?.stack && (
+              <Text style={styles.errorStack}>{this.state.error.stack}</Text>
+            )}
+          </ScrollView>
+          <TouchableOpacity style={styles.restartButton} onPress={this.handleRestart}>
+            <Text style={styles.restartButtonText}>Reload App</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainApp() {
   const { serverConfig, init } = useCompanionStore();
 
   useEffect(() => {
-    init();
+    init().catch((err) => {
+      console.warn('[CompanionStore] init error:', err);
+    });
   }, [init]);
 
   return (
@@ -33,6 +89,14 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -41,5 +105,52 @@ const styles = StyleSheet.create({
   mainLayout: {
     flex: 1,
     position: 'relative',
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#09090b',
+    padding: 24,
+    justifyContent: 'center',
+    gap: 12,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.danger,
+  },
+  errorSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  errorBox: {
+    maxHeight: 250,
+    backgroundColor: '#18181b',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: 'monospace',
+    marginBottom: 8,
+  },
+  errorStack: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontFamily: 'monospace',
+  },
+  restartButton: {
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  restartButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#000',
   },
 });

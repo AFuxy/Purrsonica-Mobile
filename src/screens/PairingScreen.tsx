@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { QrCode, Monitor, Sparkles, ShieldCheck, AlertCircle } from 'lucide-react-native';
@@ -232,7 +234,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgDarkest,
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 16,
+    paddingBottom: 16,
   },
   header: {
     alignItems: 'center',

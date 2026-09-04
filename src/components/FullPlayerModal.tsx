@@ -8,6 +8,8 @@ import {
   Image,
   Dimensions,
   SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import {
   ChevronDown,
@@ -24,16 +26,17 @@ import {
 import { Colors } from '../theme/colors';
 import { useCompanionStore } from '../store/companionStore';
 import { connectionService } from '../services/connection';
+import { Track } from '../types';
 
 const { width } = Dimensions.get('window');
 const ART_SIZE = width - 64;
 
 export const FullPlayerModal: React.FC = () => {
   const {
-    currentTrack,
-    isPlaying,
-    positionMillis,
-    durationMillis,
+    currentTrack: localTrack,
+    isPlaying: localIsPlaying,
+    positionMillis: localPositionMillis,
+    durationMillis: localDurationMillis,
     isFullPlayerOpen,
     setFullPlayerOpen,
     togglePlay,
@@ -41,14 +44,27 @@ export const FullPlayerModal: React.FC = () => {
     playPrevious,
     seekTo,
     playbackTarget,
-    setPlaybackTarget,
-    sendRemoteDesktopCommand,
+    transferToPC,
+    transferToPhone,
+    desktopPlaybackState,
     serverConfig,
   } = useCompanionStore();
 
+  const isRemote = playbackTarget === 'remote_desktop';
+  const currentTrack = isRemote && desktopPlaybackState?.track
+    ? (desktopPlaybackState.track as unknown as Track)
+    : localTrack;
+  const isPlaying = isRemote ? Boolean(desktopPlaybackState?.isPlaying) : localIsPlaying;
+  const positionMillis = isRemote
+    ? Math.floor((desktopPlaybackState?.currentTime || 0) * 1000)
+    : localPositionMillis;
+  const durationMillis = isRemote
+    ? Math.floor((desktopPlaybackState?.duration || currentTrack?.duration || 0) * 1000)
+    : localDurationMillis;
+
   if (!currentTrack) return null;
 
-  const artUrl = currentTrack.cover_art_path
+  const artUrl = ((currentTrack as any).has_cover || currentTrack.cover_art_path)
     ? connectionService.getArtUrl(currentTrack.id)
     : null;
 
@@ -69,15 +85,6 @@ export const FullPlayerModal: React.FC = () => {
     const ratio = Math.max(0, Math.min(1, locationX / barWidth));
     const targetMs = ratio * durationMillis;
     seekTo(targetMs);
-  };
-
-  const handleHandoffToPC = () => {
-    sendRemoteDesktopCommand({
-      type: 'playTrack',
-      trackId: currentTrack.id,
-      position: Math.floor(positionMillis / 1000),
-    });
-    setPlaybackTarget('remote_desktop');
   };
 
   return (
@@ -184,16 +191,29 @@ export const FullPlayerModal: React.FC = () => {
 
         {/* Cross-Device Output Switcher Pill */}
         <View style={styles.deviceSwitcherContainer}>
-          <TouchableOpacity
-            style={styles.deviceSwitcher}
-            onPress={handleHandoffToPC}
-            activeOpacity={0.8}
-          >
-            <Monitor size={16} color={Colors.accentLight} />
-            <Text style={styles.deviceSwitcherText}>
-              Transfer Playback to {serverConfig?.serverName || 'PC'}
-            </Text>
-          </TouchableOpacity>
+          {isRemote ? (
+            <TouchableOpacity
+              style={[styles.deviceSwitcher, styles.deviceSwitcherPhone]}
+              onPress={transferToPhone}
+              activeOpacity={0.8}
+            >
+              <Smartphone size={16} color="#34d399" />
+              <Text style={[styles.deviceSwitcherText, styles.deviceSwitcherPhoneText]}>
+                Playing on {serverConfig?.serverName || 'PC'} • Tap to Play on Phone
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.deviceSwitcher}
+              onPress={transferToPC}
+              activeOpacity={0.8}
+            >
+              <Monitor size={16} color={Colors.accentLight} />
+              <Text style={styles.deviceSwitcherText}>
+                Playing on Phone • Tap to Play on {serverConfig?.serverName || 'PC'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     </Modal>
@@ -205,6 +225,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bgDarkest,
     justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
     paddingBottom: 24,
   },
   header: {
@@ -380,5 +401,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: Colors.accentLight,
+  },
+  deviceSwitcherPhone: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  deviceSwitcherPhoneText: {
+    color: '#34d399',
   },
 });

@@ -9,6 +9,9 @@ import {
   RefreshControl,
   SafeAreaView,
   Alert,
+  Platform,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Search,
@@ -21,17 +24,24 @@ import {
   Smartphone,
   HardDrive,
   Info,
+  ChevronLeft,
+  Play,
 } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { useCompanionStore } from '../store/companionStore';
 import { TrackItem } from '../components/TrackItem';
 import { ConnectionBanner } from '../components/ConnectionBanner';
+import { connectionService } from '../services/connection';
+import { Playlist, Track } from '../types';
 
 type TabType = 'tracks' | 'playlists' | 'settings';
 
 export const HomeScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('tracks');
   const [searchText, setSearchText] = useState('');
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
+  const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
 
   const {
     tracks,
@@ -45,6 +55,24 @@ export const HomeScreen: React.FC = () => {
     serverConfig,
     activeHost,
   } = useCompanionStore();
+
+  const handleOpenPlaylist = async (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
+    setIsLoadingPlaylistTracks(true);
+    try {
+      const pTracks = await connectionService.fetchLibraryTracks(50000, 0, playlist.id);
+      setPlaylistTracks(pTracks);
+    } catch {
+      setPlaylistTracks([]);
+    } finally {
+      setIsLoadingPlaylistTracks(false);
+    }
+  };
+
+  const handleBackToPlaylists = () => {
+    setSelectedPlaylist(null);
+    setPlaylistTracks([]);
+  };
 
   const filteredTracks = tracks.filter((t) => {
     if (!searchText.trim()) return true;
@@ -186,12 +214,84 @@ export const HomeScreen: React.FC = () => {
         />
       )}
 
-      {activeTab === 'playlists' && (
+      {activeTab === 'playlists' && selectedPlaylist && (
+        <View style={{ flex: 1 }}>
+          {/* Playlist Detail Header */}
+          <View style={styles.playlistDetailHeader}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackToPlaylists}
+            >
+              <ChevronLeft size={20} color={Colors.primaryLight} />
+              <Text style={styles.backButtonText}>Playlists</Text>
+            </TouchableOpacity>
+
+            <View style={styles.playlistDetailInfo}>
+              <View style={styles.playlistDetailArt}>
+                <ListMusic size={24} color={Colors.primaryLight} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.playlistDetailTitle} numberOfLines={1}>
+                  {selectedPlaylist.name}
+                </Text>
+                <Text style={styles.playlistDetailSubtitle}>
+                  {selectedPlaylist.track_count} tracks {selectedPlaylist.description ? `• ${selectedPlaylist.description}` : ''}
+                </Text>
+              </View>
+              {playlistTracks.length > 0 && (
+                <TouchableOpacity
+                  style={styles.playlistPlayAllButton}
+                  onPress={() => playTrack(playlistTracks[0])}
+                >
+                  <Play size={14} color="#000" fill="#000" />
+                  <Text style={styles.playlistPlayAllText}>Play</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {isLoadingPlaylistTracks ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primaryLight} />
+              <Text style={styles.loadingText}>Loading tracks...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={playlistTracks}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TrackItem
+                  track={item}
+                  isCurrent={currentTrack?.id === item.id}
+                  isPlaying={isPlaying && currentTrack?.id === item.id}
+                  onPress={() => playTrack(item)}
+                />
+              )}
+              contentContainerStyle={playlistTracks.length === 0 ? { flex: 1 } : { paddingBottom: 80 }}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Music size={36} color={Colors.textDisabled} />
+                  <Text style={styles.emptyStateTitle}>Playlist is Empty</Text>
+                  <Text style={styles.emptyStateSubtitle}>
+                    Add songs to this playlist in Purrsonica Desktop
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      )}
+
+      {activeTab === 'playlists' && !selectedPlaylist && (
         <FlatList
           data={playlists}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <View style={styles.playlistCard}>
+            <TouchableOpacity
+              style={styles.playlistCard}
+              onPress={() => handleOpenPlaylist(item)}
+              activeOpacity={0.7}
+            >
               <View style={styles.playlistArtPlaceholder}>
                 <ListMusic size={24} color={Colors.primaryLight} />
               </View>
@@ -201,7 +301,7 @@ export const HomeScreen: React.FC = () => {
                   {item.track_count} tracks • {item.description || 'Playlist'}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 80 }}
           ListEmptyComponent={
@@ -277,6 +377,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.bgDarkest,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
   },
   header: {
     flexDirection: 'row',
@@ -452,5 +553,72 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
     color: Colors.danger,
+  },
+  playlistDetailHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    gap: 12,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  backButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primaryLight,
+  },
+  playlistDetailInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  playlistDetailArt: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistDetailTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  playlistDetailSubtitle: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  playlistPlayAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
+  },
+  playlistPlayAllText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: Colors.textMuted,
   },
 });

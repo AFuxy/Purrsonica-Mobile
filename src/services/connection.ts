@@ -29,6 +29,7 @@ class ConnectionService {
   private ws: WebSocket | null = null;
   private activeHost: string | null = null;
   private port: number = 51820;
+  private cachedToken: string | null = null;
   private reconnectTimer: any = null;
   private heartbeatTimer: any = null;
   private retryCount: number = 0;
@@ -101,7 +102,11 @@ class ConnectionService {
           deviceId,
           deviceName,
           platform,
-          model: Platform.select({ ios: 'iPhone', android: 'Android Device', default: 'Mobile' }),
+          model: Platform.select({
+            ios: 'iPhone',
+            android: ((Platform.constants as any)?.Model as string) || 'Android Device',
+            default: 'Mobile',
+          }),
         }),
       });
 
@@ -112,24 +117,26 @@ class ConnectionService {
         return false;
       }
 
-      const data = (await response.json()) as PairingResponse;
-      if (!data.token) {
+      const data = (await response.json()) as any;
+      const token = data?.token || data?.authToken;
+      if (!token) {
+        console.error('[Connection] Pairing failed: token not found in response:', data);
         this.setStatus('failed');
         return false;
       }
 
       // Save token and server configuration
-      await saveAuthToken(data.token);
+      await saveAuthToken(token);
       await saveServerConfig({
-        serverName: payload.serverName,
+        serverName: data.serverName || payload.serverName,
         localIps: payload.localIps,
         port: payload.port,
-        fingerprint: payload.fingerprint,
+        fingerprint: data.fingerprint || payload.fingerprint,
         allowOutsideLan: payload.allowOutsideLan,
       });
 
       this.retryCount = 0;
-      await this.connectWebSocket(workingHost, payload.port, data.token);
+      await this.connectWebSocket(workingHost, payload.port, token);
       return true;
     } catch (err) {
       console.error('[Connection] Pairing request error:', err);
@@ -173,13 +180,14 @@ class ConnectionService {
     return await this.connectWebSocket(host, config.port, token);
   }
 
-  // Ping candidate hosts concurrently with a strict 1500ms timeout
+  // Ping candidate hosts concurrently with a 3500ms timeout
   private async discoverResponsiveHost(ips: string[], port: number): Promise<string | null> {
     const checkIp = async (ip: string): Promise<string | null> => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1800);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
 
+        console.log(`[Connection] Probing candidate host: http://${ip}:${port}/api/v1/ping`);
         const res = await fetch(`http://${ip}:${port}/api/v1/ping`, {
           signal: controller.signal,
         });
@@ -187,10 +195,13 @@ class ConnectionService {
 
         if (res.ok) {
           const data = await res.json();
-          if (data.status === 'ok') return ip;
+          if (data.status === 'ok') {
+            console.log(`[Connection] Successfully discovered responsive host: ${ip}`);
+            return ip;
+          }
         }
-      } catch {
-        // Expected if IP is unreachable
+      } catch (err: any) {
+        console.warn(`[Connection] Ping to http://${ip}:${port} failed:`, err?.message || err);
       }
       return null;
     };
@@ -200,9 +211,19 @@ class ConnectionService {
   }
 
   // Connect WebSocket for real-time bidirectional syncing
-  private async connectWebSocket(host: string, port: number, token: string): Promise<boolean> {
+  private connectWebSocket(host: string, port: number, token: string): Promise<boolean> {
+    this.cachedToken = token;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     if (this.ws) {
       try {
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
+        this.ws.onerror = null;
+        this.ws.onclose = null;
         this.ws.close();
       } catch {}
       this.ws = null;
@@ -213,11 +234,32 @@ class ConnectionService {
         const wsUrl = `ws://${host}:${port}/ws?token=${encodeURIComponent(token)}`;
         this.ws = new WebSocket(wsUrl);
 
-        this.ws.onopen = () => {
+        this.ws.onopen = async () => {
           console.log('[Connection] WebSocket connected to', host);
           this.retryCount = 0;
+          if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+          }
           this.setStatus('connected');
           this.startHeartbeat();
+
+          // Sync device info and model to desktop server
+          try {
+            const deviceName = await getDeviceName();
+            const model = Platform.OS === 'android' ? (((Platform.constants as any)?.Model as string) || 'Android') : 'iPhone';
+            this.ws?.send(
+              JSON.stringify({
+                type: 'DEVICE_INFO',
+                payload: {
+                  name: deviceName,
+                  model,
+                  platform: Platform.OS,
+                },
+              })
+            );
+          } catch {}
+
           resolve(true);
         };
 
@@ -291,6 +333,7 @@ class ConnectionService {
     try {
       const message = JSON.parse(rawData);
       switch (message.type) {
+        case 'DESKTOP_PLAYBACK_STATE':
         case 'DESKTOP_STATE_UPDATE':
           this.desktopStateListeners.forEach((cb) => cb(message.payload));
           break;
@@ -312,7 +355,7 @@ class ConnectionService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
-          type: 'PLAYBACK_STATE_UPDATE',
+          type: 'MOBILE_PLAYBACK_STATE',
           payload: state,
         })
       );
@@ -332,14 +375,15 @@ class ConnectionService {
   }
 
   // --- REST API Client Methods ---
-  public async fetchLibraryTracks(limit = 200, offset = 0): Promise<Track[]> {
+  public async fetchLibraryTracks(limit = 50000, offset = 0, playlistId?: string): Promise<Track[]> {
     if (!this.activeHost) return [];
-    const token = await getAuthToken();
+    const token = this.cachedToken || (await getAuthToken());
     if (!token) return [];
 
     try {
+      const playlistParam = playlistId ? `&playlistId=${encodeURIComponent(playlistId)}` : '';
       const res = await fetch(
-        `http://${this.activeHost}:${this.port}/api/v1/library/tracks?limit=${limit}&offset=${offset}`,
+        `http://${this.activeHost}:${this.port}/api/v1/library/tracks?limit=${limit}&offset=${offset}${playlistParam}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -356,7 +400,7 @@ class ConnectionService {
 
   public async fetchPlaylists(): Promise<Playlist[]> {
     if (!this.activeHost) return [];
-    const token = await getAuthToken();
+    const token = this.cachedToken || (await getAuthToken());
     if (!token) return [];
 
     try {
@@ -375,17 +419,20 @@ class ConnectionService {
 
   public getStreamUrl(trackId: string): string {
     if (!this.activeHost) return '';
-    return `http://${this.activeHost}:${this.port}/api/v1/stream/${trackId}`;
+    const tokenQuery = this.cachedToken ? `?token=${encodeURIComponent(this.cachedToken)}` : '';
+    return `http://${this.activeHost}:${this.port}/api/v1/stream/${trackId}${tokenQuery}`;
   }
 
   public getArtUrl(trackId: string): string {
     if (!this.activeHost) return '';
-    return `http://${this.activeHost}:${this.port}/api/v1/art/${trackId}`;
+    const tokenQuery = this.cachedToken ? `?token=${encodeURIComponent(this.cachedToken)}` : '';
+    return `http://${this.activeHost}:${this.port}/api/v1/art/${trackId}${tokenQuery}`;
   }
 
   // Explicit disconnect & unpair
   public async disconnectAndUnpair(): Promise<void> {
     this.isExplicitDisconnect = true;
+    this.cachedToken = null;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.stopHeartbeat();
     if (this.ws) {

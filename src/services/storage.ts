@@ -70,10 +70,17 @@ export async function getDeviceName(): Promise<string> {
   const custom = await getSecureItem(DEVICE_NAME_KEY);
   if (custom) return custom;
 
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === 'android') {
+    const c = Platform.constants as any;
+    const rawBrand = (c?.Brand || c?.Manufacturer || '').trim();
+    const model = (c?.Model || 'Android Phone').trim();
+    const brand = rawBrand ? rawBrand.charAt(0).toUpperCase() + rawBrand.slice(1) : '';
+    if (brand && !model.toLowerCase().startsWith(brand.toLowerCase())) {
+      return `${brand} ${model}`;
+    }
+    return model;
+  } else if (Platform.OS === 'ios') {
     return 'iPhone Companion';
-  } else if (Platform.OS === 'android') {
-    return 'Android Companion';
   }
   return 'Mobile Companion';
 }

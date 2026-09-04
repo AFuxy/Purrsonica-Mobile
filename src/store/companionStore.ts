@@ -47,6 +47,8 @@ interface CompanionState {
   playPrevious: () => Promise<void>;
   setPlaybackTarget: (target: PlaybackTarget) => void;
   sendRemoteDesktopCommand: (command: RemotePlaybackCommand) => void;
+  transferToPC: () => Promise<void>;
+  transferToPhone: () => Promise<void>;
   setSearchQuery: (query: string) => void;
   setFullPlayerOpen: (open: boolean) => void;
 }
@@ -168,7 +170,7 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
     if (get().isLoadingLibrary) return;
     set({ isLoadingLibrary: true });
     try {
-      const tracks = await connectionService.fetchLibraryTracks(500, 0);
+      const tracks = await connectionService.fetchLibraryTracks(50000, 0);
       const playlists = await connectionService.fetchPlaylists();
       set({ tracks, playlists });
     } catch (err) {
@@ -242,6 +244,34 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
   setPlaybackTarget: (target) => set({ playbackTarget: target }),
 
   sendRemoteDesktopCommand: (command) => connectionService.sendRemoteCommand(command),
+
+  transferToPC: async () => {
+    const { currentTrack, positionMillis } = get();
+    if (!currentTrack) return;
+    await audioService.pause();
+    connectionService.sendRemoteCommand({
+      type: 'playTrack',
+      trackId: currentTrack.id,
+      position: Math.max(0, Math.floor(positionMillis / 1000)),
+    });
+    set({ playbackTarget: 'remote_desktop' });
+  },
+
+  transferToPhone: async () => {
+    const { desktopPlaybackState, tracks } = get();
+    // 1. Tell PC to pause
+    connectionService.sendRemoteCommand({ type: 'pause' });
+
+    // 2. Play locally from exact timestamp
+    if (desktopPlaybackState?.track) {
+      const trackId = desktopPlaybackState.track.id;
+      const found = tracks.find((t) => t.id === trackId) || (desktopPlaybackState.track as any);
+      set({ currentTrack: found, playbackTarget: 'phone' });
+      await audioService.playTrack(found, Math.floor(desktopPlaybackState.currentTime || 0));
+    } else {
+      set({ playbackTarget: 'phone' });
+    }
+  },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 

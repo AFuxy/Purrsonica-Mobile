@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-nati
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from './src/theme/colors';
 import { useCompanionStore } from './src/store/companionStore';
+import { useThemeStore } from './src/store/themeStore';
 import { PairingScreen } from './src/screens/PairingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
@@ -64,8 +65,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 function MainApp() {
   const { serverConfig, init } = useCompanionStore();
+  const accentColor = useThemeStore((s) => s.accentColor);
 
   useEffect(() => {
+    useThemeStore.getState().loadSavedTheme();
     init().catch((err) => {
       console.warn('[CompanionStore] init error:', err);
     });

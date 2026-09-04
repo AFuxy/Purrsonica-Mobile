@@ -126,3 +126,18 @@ export async function wipePairingSession(): Promise<void> {
   await clearAuthToken();
   await clearServerConfig();
 }
+
+// Mobile Theme Storage
+const THEME_ACCENT_KEY = 'purrsonica_mobile_theme_accent';
+const THEME_PRESET_KEY = 'purrsonica_mobile_theme_preset';
+
+export async function saveStoredTheme(accentColor: string, presetId: string): Promise<void> {
+  await setSecureItem(THEME_ACCENT_KEY, accentColor);
+  await setSecureItem(THEME_PRESET_KEY, presetId);
+}
+
+export async function getStoredTheme(): Promise<{ accentColor: string | null; presetId: string | null }> {
+  const accentColor = await getSecureItem(THEME_ACCENT_KEY);
+  const presetId = await getSecureItem(THEME_PRESET_KEY);
+  return { accentColor, presetId };
+}

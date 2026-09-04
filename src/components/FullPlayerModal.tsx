@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { useCompanionStore } from '../store/companionStore';
+import { useThemeStore } from '../store/themeStore';
 import { connectionService } from '../services/connection';
 import { Track } from '../types';
 
@@ -32,6 +33,7 @@ const { width } = Dimensions.get('window');
 const ART_SIZE = width - 64;
 
 export const FullPlayerModal: React.FC = () => {
+  const accentColor = useThemeStore((s) => s.accentColor);
   const {
     currentTrack: localTrack,
     isPlaying: localIsPlaying,
@@ -95,6 +97,23 @@ export const FullPlayerModal: React.FC = () => {
       onRequestClose={() => setFullPlayerOpen(false)}
     >
       <SafeAreaView style={styles.container}>
+        {/* Dynamic Song Ambient Themed Background */}
+        {artUrl ? (
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Image
+              source={{ uri: artUrl }}
+              style={StyleSheet.absoluteFill}
+              blurRadius={Platform.OS === 'android' ? 30 : 60}
+            />
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: 'rgba(9, 9, 11, 0.82)' },
+              ]}
+            />
+          </View>
+        ) : null}
+
         {/* Header Bar */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -160,7 +179,7 @@ export const FullPlayerModal: React.FC = () => {
             activeOpacity={1}
             onPress={handleScrub}
           >
-            <View style={[styles.scrubFill, { width: `${progressPercent}%` }]} />
+            <View style={[styles.scrubFill, { width: `${progressPercent}%`, backgroundColor: Colors.primary }]} />
             <View style={[styles.scrubThumb, { left: `${progressPercent}%` }]} />
           </TouchableOpacity>
 
@@ -176,7 +195,10 @@ export const FullPlayerModal: React.FC = () => {
             <SkipBack size={26} color={Colors.text} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.mainPlayButton} onPress={togglePlay}>
+          <TouchableOpacity
+            style={[styles.mainPlayButton, { backgroundColor: Colors.primaryLight, shadowColor: Colors.primary }]}
+            onPress={togglePlay}
+          >
             {isPlaying ? (
               <Pause size={32} color="#000" fill="#000" />
             ) : (
@@ -193,23 +215,29 @@ export const FullPlayerModal: React.FC = () => {
         <View style={styles.deviceSwitcherContainer}>
           {isRemote ? (
             <TouchableOpacity
-              style={[styles.deviceSwitcher, styles.deviceSwitcherPhone]}
+              style={[
+                styles.deviceSwitcher,
+                { backgroundColor: 'rgba(6, 182, 212, 0.12)', borderColor: 'rgba(6, 182, 212, 0.25)' },
+              ]}
               onPress={transferToPhone}
               activeOpacity={0.8}
             >
-              <Smartphone size={16} color="#34d399" />
-              <Text style={[styles.deviceSwitcherText, styles.deviceSwitcherPhoneText]}>
+              <Smartphone size={16} color={Colors.accentLight} />
+              <Text style={[styles.deviceSwitcherText, { color: Colors.accentLight }]}>
                 Playing on {serverConfig?.serverName || 'PC'} • Tap to Play on Phone
               </Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={styles.deviceSwitcher}
+              style={[
+                styles.deviceSwitcher,
+                { backgroundColor: Colors.primaryGlow, borderColor: Colors.primary },
+              ]}
               onPress={transferToPC}
               activeOpacity={0.8}
             >
-              <Monitor size={16} color={Colors.accentLight} />
-              <Text style={styles.deviceSwitcherText}>
+              <Monitor size={16} color={Colors.primaryLight} />
+              <Text style={[styles.deviceSwitcherText, { color: Colors.primaryLight }]}>
                 Playing on Phone • Tap to Play on {serverConfig?.serverName || 'PC'}
               </Text>
             </TouchableOpacity>

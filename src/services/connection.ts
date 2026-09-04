@@ -19,6 +19,7 @@ import {
   wipePairingSession,
   StoredServerConfig,
 } from './storage';
+import { useThemeStore } from '../store/themeStore';
 
 type StatusListener = (status: ConnectionStatus) => void;
 type DesktopStateListener = (state: DesktopPlaybackState) => void;
@@ -339,6 +340,14 @@ class ConnectionService {
           break;
         case 'REMOTE_COMMAND':
           this.remoteCommandListeners.forEach((cb) => cb(message.payload));
+          break;
+        case 'THEME_UPDATE':
+          if (message.payload?.accentColor) {
+            useThemeStore.getState().setAccentColor(
+              message.payload.accentColor,
+              message.payload.accentPreset
+            );
+          }
           break;
         case 'PONG':
           break;

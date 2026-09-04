@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Play, Pause, SkipForward, Music } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { useCompanionStore } from '../store/companionStore';
+import { useThemeStore } from '../store/themeStore';
 import { connectionService } from '../services/connection';
 
 export const MiniPlayer: React.FC = () => {
+  const accentColor = useThemeStore((s) => s.accentColor);
   const {
     currentTrack,
     isPlaying,
@@ -22,15 +24,14 @@ export const MiniPlayer: React.FC = () => {
     ? Math.min(100, Math.max(0, (positionMillis / durationMillis) * 100))
     : 0;
 
-  const artUrl = currentTrack.cover_art_path
-    ? connectionService.getArtUrl(currentTrack.id)
-    : null;
+  const hasCover = Boolean(currentTrack.has_cover || currentTrack.cover_art_path);
+  const artUrl = hasCover ? connectionService.getArtUrl(currentTrack.id) : null;
 
   return (
     <View style={styles.outerContainer}>
       {/* Top Progress Line */}
       <View style={styles.progressBarBackground}>
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        <View style={[styles.progressBarFill, { width: `${progressPercent}%`, backgroundColor: Colors.primary }]} />
       </View>
 
       <TouchableOpacity
@@ -62,7 +63,7 @@ export const MiniPlayer: React.FC = () => {
         {/* Controls */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={styles.playButton}
+            style={[styles.playButton, { backgroundColor: Colors.primary }]}
             onPress={(e) => {
               e.stopPropagation();
               togglePlay();

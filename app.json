@@ -2,7 +2,7 @@
   "expo": {
     "name": "Purrsonica Mobile",
     "slug": "Purrsonica-Mobile",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "com.purrsonica.mobile",
-      "versionCode": 5,
+      "versionCode": 6,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#09090b",

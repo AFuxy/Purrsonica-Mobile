@@ -109,8 +109,24 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
       } else if (cmd.type === 'seek' && typeof cmd.position === 'number') {
         audioService.seekTo(cmd.position * 1000);
       } else if (cmd.type === 'playTrack' && cmd.trackId) {
-        const found = get().tracks.find((t) => t.id === cmd.trackId);
-        if (found) get().playTrack(found);
+        const found = get().tracks.find((t) => t.id === cmd.trackId) || {
+          id: cmd.trackId,
+          title: (cmd as any).title || 'Streaming Track',
+          artist: (cmd as any).artist || 'Unknown Artist',
+          album: (cmd as any).album,
+          duration: (cmd as any).duration || 0,
+          file_name: 'track',
+          file_path: '',
+          format: 'mp3',
+          file_size: 0,
+          date_added: Date.now(),
+        };
+        get().playTrack(found as Track);
+        if (typeof cmd.position === 'number' && cmd.position > 0) {
+          setTimeout(() => {
+            audioService.seekTo(cmd.position! * 1000);
+          }, 250);
+        }
       }
     });
 

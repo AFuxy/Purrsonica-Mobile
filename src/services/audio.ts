@@ -26,6 +26,14 @@ class AudioService {
   private isRecovering: boolean = false;
   private lastBroadcastSec: number = -1;
 
+  constructor() {
+    connectionService.addStatusListener((status) => {
+      if (status === 'connected' && this.currentTrack) {
+        this.notifyPlaybackState(this.isCurrentlyPlaying(), this.lastKnownPositionSec * 1000);
+      }
+    });
+  }
+
   public async initialize(): Promise<void> {
     if (this.isConfigured) return;
     try {
@@ -50,28 +58,54 @@ class AudioService {
     return this.currentTrack;
   }
 
+  public isCurrentlyPlaying(): boolean {
+    return Boolean(this.player?.playing);
+  }
+
+  public getLastKnownPositionSec(): number {
+    return this.lastKnownPositionSec;
+  }
+
   public async playTrack(track: Track, startPositionSec = 0): Promise<void> {
     await this.initialize();
     this.currentTrack = track;
     this.lastKnownPositionSec = startPositionSec;
 
-    // Cleanup previous player
-    this.cleanupPlayer();
-
     const streamUrl = connectionService.getStreamUrl(track.id);
-    console.log(`[AudioService] Streaming track ${track.id} from ${streamUrl} at offset ${startPositionSec}s`);
+    const hasCover = Boolean((track as any).has_cover || track.cover_art_path);
+    const artUrl = hasCover ? connectionService.getArtUrl(track.id) : undefined;
+
+    console.log(`[AudioService] Streaming track ${track.id} from ${streamUrl} at offset ${startPositionSec}s (art: ${artUrl})`);
 
     try {
-      this.player = createAudioPlayer(streamUrl);
-
-      // Configure lock screen metadata
-      const artUrl = track.cover_art_path ? connectionService.getArtUrl(track.id) : undefined;
-      this.player.setActiveForLockScreen(true, {
-        title: track.title || track.file_name,
-        artist: track.artist || 'Purrsonica',
-        albumTitle: track.album || 'Purrsonica Music',
-        artworkUrl: artUrl,
-      });
+      if (this.player) {
+        // Reuse existing player to prevent Android MediaSession notification duplication
+        this.player.pause();
+        this.player.replace(streamUrl);
+        try {
+          this.player.updateLockScreenMetadata({
+            title: track.title || track.file_name,
+            artist: track.artist || 'Purrsonica',
+            albumTitle: track.album || 'Purrsonica Music',
+            artworkUrl: artUrl,
+          });
+        } catch {
+          this.player.setActiveForLockScreen(true, {
+            title: track.title || track.file_name,
+            artist: track.artist || 'Purrsonica',
+            albumTitle: track.album || 'Purrsonica Music',
+            artworkUrl: artUrl,
+          });
+        }
+      } else {
+        this.player = createAudioPlayer(streamUrl);
+        this.player.setActiveForLockScreen(true, {
+          title: track.title || track.file_name,
+          artist: track.artist || 'Purrsonica',
+          albumTitle: track.album || 'Purrsonica Music',
+          artworkUrl: artUrl,
+        });
+      }
 
       if (startPositionSec > 0) {
         await this.player.seekTo(startPositionSec);
@@ -81,7 +115,25 @@ class AudioService {
       this.startStatusPolling();
       this.notifyPlaybackState(true, startPositionSec * 1000);
     } catch (err) {
-      console.error('[AudioService] playTrack error:', err);
+      console.warn('[AudioService] playTrack error, recreating clean player:', err);
+      this.cleanupPlayer();
+      try {
+        this.player = createAudioPlayer(streamUrl);
+        this.player.setActiveForLockScreen(true, {
+          title: track.title || track.file_name,
+          artist: track.artist || 'Purrsonica',
+          albumTitle: track.album || 'Purrsonica Music',
+          artworkUrl: artUrl,
+        });
+        if (startPositionSec > 0) {
+          await this.player.seekTo(startPositionSec);
+        }
+        this.player.play();
+        this.startStatusPolling();
+        this.notifyPlaybackState(true, startPositionSec * 1000);
+      } catch (fatal) {
+        console.error('[AudioService] Fatal playTrack failure:', fatal);
+      }
     }
   }
 
@@ -196,8 +248,12 @@ class AudioService {
     if (this.player) {
       try {
         this.player.pause();
+        this.player.clearLockScreenControls();
         this.player.setActiveForLockScreen(false);
-      } catch {}
+        this.player.remove();
+      } catch (err) {
+        console.warn('[AudioService] cleanupPlayer error:', err);
+      }
       this.player = null;
     }
   }
@@ -206,6 +262,7 @@ class AudioService {
     const token = await getAuthToken();
     const deviceId = await getOrCreateDeviceId();
     const deviceName = await getDeviceName();
+    const hasCover = Boolean((this.currentTrack as any)?.has_cover || this.currentTrack?.cover_art_path);
 
     connectionService.broadcastPlaybackState({
       deviceId,
@@ -218,7 +275,7 @@ class AudioService {
       currentTime: Math.max(0, Math.floor(positionMillis / 1000)),
       duration: this.currentTrack ? Math.floor(this.currentTrack.duration) : 0,
       volume: 1.0,
-      cover_art_path: this.currentTrack?.cover_art_path || undefined,
+      cover_art_path: hasCover ? 'cover' : undefined,
     });
   }
 }

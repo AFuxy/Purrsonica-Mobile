@@ -26,9 +26,11 @@ import {
   Info,
   ChevronLeft,
   Play,
+  Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { useCompanionStore } from '../store/companionStore';
+import { useThemeStore } from '../store/themeStore';
 import { TrackItem } from '../components/TrackItem';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import { connectionService } from '../services/connection';
@@ -55,6 +57,7 @@ export const HomeScreen: React.FC = () => {
     serverConfig,
     activeHost,
   } = useCompanionStore();
+  const { accentColor, accentPreset } = useThemeStore();
 
   const handleOpenPlaylist = async (playlist: Playlist) => {
     setSelectedPlaylist(playlist);
@@ -132,7 +135,14 @@ export const HomeScreen: React.FC = () => {
       {/* Tabs Row */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'tracks' && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            activeTab === 'tracks' && {
+              backgroundColor: Colors.primaryGlow,
+              borderWidth: 1,
+              borderColor: Colors.primary,
+            },
+          ]}
           onPress={() => setActiveTab('tracks')}
         >
           <Music
@@ -140,14 +150,24 @@ export const HomeScreen: React.FC = () => {
             color={activeTab === 'tracks' ? Colors.primaryLight : Colors.textMuted}
           />
           <Text
-            style={[styles.tabText, activeTab === 'tracks' && styles.tabTextActive]}
+            style={[
+              styles.tabText,
+              activeTab === 'tracks' && { color: Colors.primaryLight, fontWeight: 'bold' },
+            ]}
           >
             Tracks ({tracks.length})
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'playlists' && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            activeTab === 'playlists' && {
+              backgroundColor: Colors.primaryGlow,
+              borderWidth: 1,
+              borderColor: Colors.primary,
+            },
+          ]}
           onPress={() => setActiveTab('playlists')}
         >
           <ListMusic
@@ -155,14 +175,24 @@ export const HomeScreen: React.FC = () => {
             color={activeTab === 'playlists' ? Colors.primaryLight : Colors.textMuted}
           />
           <Text
-            style={[styles.tabText, activeTab === 'playlists' && styles.tabTextActive]}
+            style={[
+              styles.tabText,
+              activeTab === 'playlists' && { color: Colors.primaryLight, fontWeight: 'bold' },
+            ]}
           >
             Playlists ({playlists.length})
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'settings' && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            activeTab === 'settings' && {
+              backgroundColor: Colors.primaryGlow,
+              borderWidth: 1,
+              borderColor: Colors.primary,
+            },
+          ]}
           onPress={() => setActiveTab('settings')}
         >
           <Sliders
@@ -170,7 +200,10 @@ export const HomeScreen: React.FC = () => {
             color={activeTab === 'settings' ? Colors.primaryLight : Colors.textMuted}
           />
           <Text
-            style={[styles.tabText, activeTab === 'settings' && styles.tabTextActive]}
+            style={[
+              styles.tabText,
+              activeTab === 'settings' && { color: Colors.primaryLight, fontWeight: 'bold' },
+            ]}
           >
             Info & Settings
           </Text>
@@ -347,6 +380,35 @@ export const HomeScreen: React.FC = () => {
                 {serverConfig?.allowOutsideLan ? 'Enabled (4G/5G Access)' : 'Local LAN Only'}
               </Text>
             </View>
+          </View>
+
+          {/* Desktop Theme Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Sparkles size={18} color={Colors.primaryLight} />
+              <Text style={styles.cardTitle}>Desktop Accent Theme</Text>
+            </View>
+            <View style={styles.cardRow}>
+              <Text style={styles.cardLabel}>Synced Color</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: Colors.primary,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                  }}
+                />
+                <Text style={styles.cardValue}>
+                  {accentPreset ? accentPreset.charAt(0).toUpperCase() + accentPreset.slice(1) : 'Synced'} ({Colors.primary})
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.cardDesc}>
+              Theme accents are broadcast live from your desktop and applied dynamically across the mobile player.
+            </Text>
           </View>
 
           {/* Privacy & Protocol Card */}

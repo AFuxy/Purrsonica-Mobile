@@ -15,6 +15,7 @@ export interface Track {
   format: string;
   file_size: number;
   cover_art_path?: string | null;
+  has_cover?: boolean;
   bpm?: number | null;
   musical_key?: string | null;
   camelot_key?: string | null;

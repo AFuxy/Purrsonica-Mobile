@@ -5,6 +5,7 @@ import { Track } from '../types';
 import { Colors } from '../theme/colors';
 import { connectionService } from '../services/connection';
 import { useCompanionStore } from '../store/companionStore';
+import { useThemeStore } from '../store/themeStore';
 
 interface TrackItemProps {
   track: Track;
@@ -19,7 +20,9 @@ export const TrackItem: React.FC<TrackItemProps> = ({
   isPlaying,
   onPress,
 }) => {
-  const artUrl = track.cover_art_path ? connectionService.getArtUrl(track.id) : null;
+  const accentColor = useThemeStore((s) => s.accentColor);
+  const hasCover = Boolean(track.has_cover || track.cover_art_path);
+  const artUrl = hasCover ? connectionService.getArtUrl(track.id) : null;
 
   const formatDuration = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -29,7 +32,13 @@ export const TrackItem: React.FC<TrackItemProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.container, isCurrent && styles.containerActive]}
+      style={[
+        styles.container,
+        isCurrent && {
+          backgroundColor: Colors.primaryGlow,
+          borderColor: Colors.primary,
+        },
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -44,7 +53,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({
         )}
 
         {isCurrent && (
-          <View style={styles.playingOverlay}>
+          <View style={[styles.playingOverlay, { backgroundColor: Colors.primary }]}>
             {isPlaying ? (
               <Pause size={14} color="#000" fill="#000" />
             ) : (
@@ -57,7 +66,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({
       {/* Track Metadata */}
       <View style={styles.infoWrapper}>
         <Text
-          style={[styles.title, isCurrent && styles.titleActive]}
+          style={[styles.title, isCurrent && { color: Colors.primaryLight, fontWeight: 'bold' }]}
           numberOfLines={1}
         >
           {track.title || track.file_name}

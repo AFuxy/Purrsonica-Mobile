@@ -44,6 +44,24 @@ jobs:
       - name: Install Node Dependencies
         run: npm ci
 
+      - name: Sync App Version & VersionCode from Tag
+        run: |
+          VERSION="${{ github.event.inputs.release_tag || github.ref_name }}"
+          CLEAN_VER="${VERSION#v}"
+          echo "Syncing app version to $CLEAN_VER (versionCode: ${{ github.run_number }})"
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            app.expo.version = '$CLEAN_VER';
+            if (!app.expo.android) app.expo.android = {};
+            app.expo.android.versionCode = parseInt('${{ github.run_number }}') || 1;
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+            
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$CLEAN_VER';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+
       - name: Generate Android Native Project (Expo Prebuild)
         run: npx expo prebuild --platform android --clean
 

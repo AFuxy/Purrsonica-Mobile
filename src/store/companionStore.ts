@@ -149,7 +149,7 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
   },
 
   disconnectAndUnpair: async () => {
-    await audioService.stopAndUnload();
+    await audioService.stop();
     await connectionService.disconnectAndUnpair();
     set({
       serverConfig: null,

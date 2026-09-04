@@ -2,7 +2,7 @@
   "expo": {
     "name": "Purrsonica Mobile",
     "slug": "Purrsonica-Mobile",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -18,11 +18,14 @@
       "bundleIdentifier": "com.purrsonica.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "Purrsonica needs camera access to scan your desktop pairing QR code.",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
       "package": "com.purrsonica.mobile",
+      "versionCode": 2,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#09090b",
@@ -51,7 +54,8 @@
           "cameraPermission": "Purrsonica needs camera access to scan your desktop pairing QR code.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }

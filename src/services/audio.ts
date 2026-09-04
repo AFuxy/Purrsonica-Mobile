@@ -24,6 +24,7 @@ class AudioService {
   private statusListeners = new Set<AudioStatusCallback>();
   private pollInterval: any = null;
   private isRecovering: boolean = false;
+  private lastBroadcastSec: number = -1;
 
   public async initialize(): Promise<void> {
     if (this.isConfigured) return;
@@ -173,6 +174,13 @@ class AudioService {
         });
       });
 
+      // Broadcast live position to desktop companion server (every ~1s or state change)
+      const currentSecInt = Math.floor(currentSec);
+      if (isPlaying && currentSecInt !== this.lastBroadcastSec) {
+        this.lastBroadcastSec = currentSecInt;
+        this.notifyPlaybackState(isPlaying, positionMillis);
+      }
+
       if (didJustFinish) {
         this.cleanupPlayer();
       }
@@ -180,6 +188,7 @@ class AudioService {
   }
 
   private cleanupPlayer(): void {
+    this.lastBroadcastSec = -1;
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
@@ -205,9 +214,11 @@ class AudioService {
       trackId: this.currentTrack?.id,
       trackTitle: this.currentTrack?.title || this.currentTrack?.file_name,
       artist: this.currentTrack?.artist,
-      currentTime: Math.floor(positionMillis / 1000),
+      album: this.currentTrack?.album || undefined,
+      currentTime: Math.max(0, Math.floor(positionMillis / 1000)),
       duration: this.currentTrack ? Math.floor(this.currentTrack.duration) : 0,
       volume: 1.0,
+      cover_art_path: this.currentTrack?.cover_art_path || undefined,
     });
   }
 }

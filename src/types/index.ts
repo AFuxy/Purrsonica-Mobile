@@ -78,11 +78,13 @@ export interface MobilePlaybackState {
   trackId?: string;
   trackTitle?: string;
   artist?: string;
+  album?: string;
   currentTime: number;
   duration: number;
   volume: number;
   deviceId: string;
   deviceName: string;
+  cover_art_path?: string;
 }
 
 export interface DesktopPlaybackState {

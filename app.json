@@ -3,6 +3,7 @@
     "name": "Purrsonica Mobile",
     "slug": "Purrsonica-Mobile",
     "version": "1.0.0",
+    "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -47,11 +48,10 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Purrsonica needs camera access to scan your desktop pairing QR code."
+          "cameraPermission": "Purrsonica needs camera access to scan your desktop pairing QR code.",
+          "recordAudioAndroid": false
         }
-      ],
-      "expo-secure-store",
-      "expo-sqlite"
+      ]
     ]
   }
 }

@@ -12,6 +12,8 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  Image,
+  ScrollView,
 } from 'react-native';
 import {
   Search,
@@ -19,6 +21,7 @@ import {
   Unlink,
   Music,
   ListMusic,
+  Disc,
   Sliders,
   ShieldCheck,
   Smartphone,
@@ -34,9 +37,9 @@ import { useThemeStore } from '../store/themeStore';
 import { TrackItem } from '../components/TrackItem';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import { connectionService } from '../services/connection';
-import { Playlist, Track } from '../types';
+import { Album, Playlist, Track } from '../types';
 
-type TabType = 'tracks' | 'playlists' | 'settings';
+type TabType = 'tracks' | 'albums' | 'playlists' | 'settings';
 
 export const HomeScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('tracks');
@@ -45,9 +48,14 @@ export const HomeScreen: React.FC = () => {
   const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
   const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
 
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [albumTracks, setAlbumTracks] = useState<Track[]>([]);
+  const [isLoadingAlbumTracks, setIsLoadingAlbumTracks] = useState(false);
+
   const {
     tracks,
     playlists,
+    albums,
     isLoadingLibrary,
     refreshLibrary,
     currentTrack,
@@ -77,6 +85,36 @@ export const HomeScreen: React.FC = () => {
     setPlaylistTracks([]);
   };
 
+  const handleOpenAlbum = async (album: Album) => {
+    setSelectedAlbum(album);
+    setIsLoadingAlbumTracks(true);
+    try {
+      const aTracks = await connectionService.fetchLibraryTracks(50000, 0, undefined, album.name);
+      if (aTracks.length > 0) {
+        setAlbumTracks(aTracks);
+      } else {
+        setAlbumTracks(
+          tracks.filter(
+            (t) => t.album && t.album.trim().toLowerCase() === album.name.trim().toLowerCase()
+          )
+        );
+      }
+    } catch {
+      setAlbumTracks(
+        tracks.filter(
+          (t) => t.album && t.album.trim().toLowerCase() === album.name.trim().toLowerCase()
+        )
+      );
+    } finally {
+      setIsLoadingAlbumTracks(false);
+    }
+  };
+
+  const handleBackToAlbums = () => {
+    setSelectedAlbum(null);
+    setAlbumTracks([]);
+  };
+
   const filteredTracks = tracks.filter((t) => {
     if (!searchText.trim()) return true;
     const q = searchText.toLowerCase();
@@ -84,6 +122,15 @@ export const HomeScreen: React.FC = () => {
       (t.title && t.title.toLowerCase().includes(q)) ||
       (t.artist && t.artist.toLowerCase().includes(q)) ||
       (t.album && t.album.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredAlbums = albums.filter((a) => {
+    if (!searchText.trim()) return true;
+    const q = searchText.toLowerCase();
+    return (
+      (a.name && a.name.toLowerCase().includes(q)) ||
+      (a.artist && a.artist.toLowerCase().includes(q))
     );
   });
 
@@ -134,80 +181,111 @@ export const HomeScreen: React.FC = () => {
 
       {/* Tabs Row */}
       <View style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'tracks' && {
-              backgroundColor: Colors.primaryGlow,
-              borderWidth: 1,
-              borderColor: Colors.primary,
-            },
-          ]}
-          onPress={() => setActiveTab('tracks')}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsRowContainer}
         >
-          <Music
-            size={14}
-            color={activeTab === 'tracks' ? Colors.primaryLight : Colors.textMuted}
-          />
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              activeTab === 'tracks' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              styles.tabButton,
+              activeTab === 'tracks' && {
+                backgroundColor: Colors.primaryGlow,
+                borderWidth: 1,
+                borderColor: Colors.primary,
+              },
             ]}
+            onPress={() => setActiveTab('tracks')}
           >
-            Tracks ({tracks.length})
-          </Text>
-        </TouchableOpacity>
+            <Music
+              size={14}
+              color={activeTab === 'tracks' ? Colors.primaryLight : Colors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'tracks' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              ]}
+            >
+              Tracks ({tracks.length})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'playlists' && {
-              backgroundColor: Colors.primaryGlow,
-              borderWidth: 1,
-              borderColor: Colors.primary,
-            },
-          ]}
-          onPress={() => setActiveTab('playlists')}
-        >
-          <ListMusic
-            size={14}
-            color={activeTab === 'playlists' ? Colors.primaryLight : Colors.textMuted}
-          />
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              activeTab === 'playlists' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              styles.tabButton,
+              activeTab === 'albums' && {
+                backgroundColor: Colors.primaryGlow,
+                borderWidth: 1,
+                borderColor: Colors.primary,
+              },
             ]}
+            onPress={() => setActiveTab('albums')}
           >
-            Playlists ({playlists.length})
-          </Text>
-        </TouchableOpacity>
+            <Disc
+              size={14}
+              color={activeTab === 'albums' ? Colors.primaryLight : Colors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'albums' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              ]}
+            >
+              Albums ({albums.length})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'settings' && {
-              backgroundColor: Colors.primaryGlow,
-              borderWidth: 1,
-              borderColor: Colors.primary,
-            },
-          ]}
-          onPress={() => setActiveTab('settings')}
-        >
-          <Sliders
-            size={14}
-            color={activeTab === 'settings' ? Colors.primaryLight : Colors.textMuted}
-          />
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              activeTab === 'settings' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              styles.tabButton,
+              activeTab === 'playlists' && {
+                backgroundColor: Colors.primaryGlow,
+                borderWidth: 1,
+                borderColor: Colors.primary,
+              },
             ]}
+            onPress={() => setActiveTab('playlists')}
           >
-            Info & Settings
-          </Text>
-        </TouchableOpacity>
+            <ListMusic
+              size={14}
+              color={activeTab === 'playlists' ? Colors.primaryLight : Colors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'playlists' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              ]}
+            >
+              Playlists ({playlists.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'settings' && {
+                backgroundColor: Colors.primaryGlow,
+                borderWidth: 1,
+                borderColor: Colors.primary,
+              },
+            ]}
+            onPress={() => setActiveTab('settings')}
+          >
+            <Sliders
+              size={14}
+              color={activeTab === 'settings' ? Colors.primaryLight : Colors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'settings' && { color: Colors.primaryLight, fontWeight: 'bold' },
+              ]}
+            >
+              Info & Settings
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* Tab Content */}
@@ -244,6 +322,151 @@ export const HomeScreen: React.FC = () => {
             </View>
           }
           contentContainerStyle={filteredTracks.length === 0 ? { flex: 1 } : { paddingBottom: 80 }}
+        />
+      )}
+
+      {activeTab === 'albums' && selectedAlbum && (
+        <View style={{ flex: 1 }}>
+          {/* Album Detail Header */}
+          <View style={styles.playlistDetailHeader}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackToAlbums}
+            >
+              <ChevronLeft size={20} color={Colors.primaryLight} />
+              <Text style={styles.backButtonText}>Albums</Text>
+            </TouchableOpacity>
+
+            <View style={styles.playlistDetailInfo}>
+              <View style={styles.albumDetailArt}>
+                {selectedAlbum.has_cover || selectedAlbum.cover_art_path ? (
+                  <Image
+                    source={{ uri: connectionService.getAlbumArtUrl(selectedAlbum.name) }}
+                    style={styles.albumDetailArtImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.albumArtFallback}>
+                    <Disc size={24} color={Colors.primaryLight} />
+                  </View>
+                )}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.playlistDetailTitle} numberOfLines={1}>
+                  {selectedAlbum.name}
+                </Text>
+                <Text style={styles.playlistDetailSubtitle} numberOfLines={1}>
+                  {selectedAlbum.artist} {selectedAlbum.year ? `• ${selectedAlbum.year}` : ''}
+                </Text>
+                <Text style={[styles.playlistDetailSubtitle, { marginTop: 1 }]}>
+                  {selectedAlbum.track_count} tracks
+                </Text>
+              </View>
+              {albumTracks.length > 0 && (
+                <TouchableOpacity
+                  style={styles.playlistPlayAllButton}
+                  onPress={() => playTrack(albumTracks[0])}
+                >
+                  <Play size={14} color="#000" fill="#000" />
+                  <Text style={styles.playlistPlayAllText}>Play</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {isLoadingAlbumTracks ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primaryLight} />
+              <Text style={styles.loadingText}>Loading album tracks...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={albumTracks}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TrackItem
+                  track={item}
+                  isCurrent={currentTrack?.id === item.id}
+                  isPlaying={isPlaying && currentTrack?.id === item.id}
+                  onPress={() => playTrack(item)}
+                />
+              )}
+              contentContainerStyle={albumTracks.length === 0 ? { flex: 1 } : { paddingBottom: 80 }}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Disc size={36} color={Colors.textDisabled} />
+                  <Text style={styles.emptyStateTitle}>No Tracks in Album</Text>
+                  <Text style={styles.emptyStateSubtitle}>
+                    Pull down on the library to refresh album contents
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      )}
+
+      {activeTab === 'albums' && !selectedAlbum && (
+        <FlatList
+          data={filteredAlbums}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.albumColumnWrapper}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.albumCard}
+              onPress={() => handleOpenAlbum(item)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.albumArtContainer}>
+                {item.has_cover || item.cover_art_path ? (
+                  <Image
+                    source={{ uri: connectionService.getAlbumArtUrl(item.name) }}
+                    style={styles.albumArtImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.albumArtFallback}>
+                    <Disc size={36} color={Colors.primaryLight} opacity={0.6} />
+                  </View>
+                )}
+              </View>
+              <Text style={styles.albumTitle} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.albumArtist} numberOfLines={1}>
+                {item.artist}
+              </Text>
+              <Text style={styles.albumDetails}>
+                {item.track_count} tracks {item.year ? `• ${item.year}` : ''}
+              </Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={
+            filteredAlbums.length === 0
+              ? { flex: 1 }
+              : { paddingTop: 16, paddingBottom: 80 }
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoadingLibrary}
+              onRefresh={refreshLibrary}
+              tintColor={Colors.primaryLight}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Disc size={40} color={Colors.textDisabled} />
+              <Text style={styles.emptyStateTitle}>
+                {searchText ? 'No Matching Albums' : 'No Albums Found'}
+              </Text>
+              <Text style={styles.emptyStateSubtitle}>
+                {searchText
+                  ? 'Try searching with a different album or artist'
+                  : 'Add songs with album tags in your Purrsonica Desktop app'}
+              </Text>
+            </View>
+          }
         />
       )}
 
@@ -474,12 +697,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   tabsRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  tabsRowContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   tabButton: {
     flexDirection: 'row',
@@ -682,5 +907,65 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 12,
     color: Colors.textMuted,
+  },
+  albumColumnWrapper: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  albumCard: {
+    width: '48%',
+    backgroundColor: Colors.bgCard,
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  albumArtContainer: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: Colors.bgDark,
+    marginBottom: 8,
+  },
+  albumArtImage: {
+    width: '100%',
+    height: '100%',
+  },
+  albumArtFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(6, 182, 212, 0.08)',
+  },
+  albumTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  albumArtist: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  albumDetails: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 2,
+    fontFamily: 'monospace',
+  },
+  albumDetailArt: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  albumDetailArtImage: {
+    width: '100%',
+    height: '100%',
   },
 });

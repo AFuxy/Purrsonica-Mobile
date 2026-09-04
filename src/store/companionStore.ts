@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  Album,
   CompanionPairingPayload,
   ConnectionStatus,
   DesktopPlaybackState,
@@ -20,6 +21,7 @@ interface CompanionState {
   // Library
   tracks: Track[];
   playlists: Playlist[];
+  albums: Album[];
   isLoadingLibrary: boolean;
   searchQuery: string;
 
@@ -60,6 +62,7 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
 
   tracks: [],
   playlists: [],
+  albums: [],
   isLoadingLibrary: false,
   searchQuery: '',
 
@@ -186,9 +189,12 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
     if (get().isLoadingLibrary) return;
     set({ isLoadingLibrary: true });
     try {
-      const tracks = await connectionService.fetchLibraryTracks(50000, 0);
-      const playlists = await connectionService.fetchPlaylists();
-      set({ tracks, playlists });
+      const [tracks, playlists, albums] = await Promise.all([
+        connectionService.fetchLibraryTracks(50000, 0),
+        connectionService.fetchPlaylists(),
+        connectionService.fetchAlbums(),
+      ]);
+      set({ tracks, playlists, albums });
     } catch (err) {
       console.warn('[Store] Failed to refresh library:', err);
     } finally {
@@ -223,12 +229,13 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
   },
 
   playNext: async () => {
-    const target = get().playbackTarget;
-    if (target === 'remote_desktop') {
+    // When connected, let the Desktop app resolve the next track (smart queue, playlist, shuffle)
+    if (connectionService.isConnected()) {
       connectionService.sendRemoteCommand({ type: 'next' });
       return;
     }
 
+    // Offline fallback
     const { tracks, currentTrack } = get();
     if (tracks.length === 0 || !currentTrack) return;
     const currentIndex = tracks.findIndex((t) => t.id === currentTrack.id);
@@ -237,12 +244,13 @@ export const useCompanionStore = create<CompanionState>((set, get) => ({
   },
 
   playPrevious: async () => {
-    const target = get().playbackTarget;
-    if (target === 'remote_desktop') {
+    // When connected, let the Desktop app resolve previous track / restart track
+    if (connectionService.isConnected()) {
       connectionService.sendRemoteCommand({ type: 'previous' });
       return;
     }
 
+    // Offline fallback
     const { tracks, currentTrack, positionMillis } = get();
     if (tracks.length === 0 || !currentTrack) return;
 

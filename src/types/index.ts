@@ -27,6 +27,16 @@ export interface Track {
   local_cached_uri?: string;
 }
 
+export interface Album {
+  id: string;
+  name: string;
+  artist: string;
+  cover_art_path?: string | null;
+  has_cover?: boolean;
+  year?: number | null;
+  track_count: number;
+}
+
 export interface Playlist {
   id: string;
   name: string;

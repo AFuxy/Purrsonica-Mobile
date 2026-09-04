@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import {
+  Album,
   CompanionPairingPayload,
   ConnectionStatus,
   DesktopPlaybackState,
@@ -42,6 +43,10 @@ class ConnectionService {
 
   public getStatus(): ConnectionStatus {
     return this.status;
+  }
+
+  public isConnected(): boolean {
+    return this.status === 'connected' && this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
   public getActiveHost(): string | null {
@@ -384,15 +389,16 @@ class ConnectionService {
   }
 
   // --- REST API Client Methods ---
-  public async fetchLibraryTracks(limit = 50000, offset = 0, playlistId?: string): Promise<Track[]> {
+  public async fetchLibraryTracks(limit = 50000, offset = 0, playlistId?: string, album?: string): Promise<Track[]> {
     if (!this.activeHost) return [];
     const token = this.cachedToken || (await getAuthToken());
     if (!token) return [];
 
     try {
       const playlistParam = playlistId ? `&playlistId=${encodeURIComponent(playlistId)}` : '';
+      const albumParam = album ? `&album=${encodeURIComponent(album)}` : '';
       const res = await fetch(
-        `http://${this.activeHost}:${this.port}/api/v1/library/tracks?limit=${limit}&offset=${offset}${playlistParam}`,
+        `http://${this.activeHost}:${this.port}/api/v1/library/tracks?limit=${limit}&offset=${offset}${playlistParam}${albumParam}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -426,6 +432,25 @@ class ConnectionService {
     return [];
   }
 
+  public async fetchAlbums(): Promise<Album[]> {
+    if (!this.activeHost) return [];
+    const token = this.cachedToken || (await getAuthToken());
+    if (!token) return [];
+
+    try {
+      const res = await fetch(`http://${this.activeHost}:${this.port}/api/v1/library/albums`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.albums || [];
+      }
+    } catch (err) {
+      console.warn('[Connection] Failed to fetch albums:', err);
+    }
+    return [];
+  }
+
   public getStreamUrl(trackId: string): string {
     if (!this.activeHost) return '';
     const tokenQuery = this.cachedToken ? `?token=${encodeURIComponent(this.cachedToken)}` : '';
@@ -436,6 +461,12 @@ class ConnectionService {
     if (!this.activeHost) return '';
     const tokenQuery = this.cachedToken ? `?token=${encodeURIComponent(this.cachedToken)}` : '';
     return `http://${this.activeHost}:${this.port}/api/v1/art/${trackId}${tokenQuery}`;
+  }
+
+  public getAlbumArtUrl(albumName: string): string {
+    if (!this.activeHost) return '';
+    const tokenQuery = this.cachedToken ? `?token=${encodeURIComponent(this.cachedToken)}` : '';
+    return `http://${this.activeHost}:${this.port}/api/v1/art/album/${encodeURIComponent(albumName)}${tokenQuery}`;
   }
 
   // Explicit disconnect & unpair
